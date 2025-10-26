@@ -1,0 +1,70 @@
+I wanted to Integrate 2 instances of ServiceNow each Other.
+
+My 2 instances are: 
+https://dev199613.service-now.com/
+https://dev197094.service-now.com/
+Source instance will be: https://dev199613.service-now.com/
+And the Target will be: https://dev197094.service-now.com/
+
+My Script Inlude is: 
+
+var MyChangeIntegration = Class.create();
+MyChangeIntegration.prototype = {
+    initialize: function() {
+    },
+	triggerCreateChange: function(chngGR){
+		var request = new sn_ws.RESTMessageV2('ToCreateOrEditChangeInAnotherInstance ','create_change');
+		request.setStringParameterNoEscape('cate',chngGR.category);
+		request.setStringParameterNoEscape('ci',chngGR.cmdb_ci);
+		request.setStringParameterNoEscape('sd',chngGR.short_description);
+		request.setStringParameterNoEscape('desc',chngGR.description);
+		var response = request.execute();
+		var responseBody = response.getBody();
+		var status = response.getStatusCode();
+		var resObj = JSON.parse(responseBody);
+		gs.log("The Response Body is " + responseBody + "and the status is " + status,'This is for Integration');
+
+		var changeUpdate = new GlideRecord('change_request');
+		changeUpdate.addQuery('sys_id',chngGR.sys_id);
+		changeUpdate.query();
+		if(changeUpdate.next()){
+			changeUpdate.u_instance2changesysid = resObj.result.sys_id;
+			changeUpdate.setWorkflow(false);
+			changeUpdate.update();
+		}
+	},
+
+	triggerUpdateChange: function(chngGR){
+		var request = new sn_ws.RESTMessageV2('ToCreateOrEditChangeInAnotherInstance','update_change');
+		request.setStringParameterNoEscape('cate',chngGR.category);
+		request.setStringParameterNoEscape('ci',chngGR.cmdb_ci);
+		request.setStringParameterNoEscape('ins2changeSysID',chngGR.u_instance2changesysid);
+		request.setStringParameterNoEscape('sd',chngGR.short_description);
+		request.setStringParameterNoEscape('desc',chngGR.description);
+		
+		var response = request.execute();
+		var responseBody = response.getBody();
+		var status = response.getStatusCode();
+
+		gs.log('The ResponseBody is '+ responseBody + "and the status is "+ status,'This is for Integration');
+
+		gs.log('The EP is '+ request.getEndpoint(),'This is for Integration');
+
+	},
+
+    type: 'MyChangeIntegration'
+};
+And My BR is : 
+
+(function executeRule(current, previous /*null when async*/) {
+
+	if(!current.u_instance2changesysid){
+		new MyChangeIntegration().triggerCreateChange(current);
+	}else 
+	if(current.u_instance2changesysid){
+		new MyChangeIntegration().triggerUpdateChange(current);
+	}
+
+})(current, previous);
+
+Result was Successful. And can be able to update and create the Change from one to other automatically.
